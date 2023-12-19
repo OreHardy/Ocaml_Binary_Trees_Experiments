@@ -1,0 +1,284 @@
+(*PROJET AP3 — OREGAN HARDY | PAUL CAILLE | ANTONY FERRY *)
+
+(*============================================================*) 
+
+(*Ouverture de nos fichiers binaires*) 
+ 
+open Btree;;
+open Bst ;;
+open ExperimentationBst ;;
+
+(*
+#load "Btree.cmo";;
+#load "bst.cmo";;
+#load "experimentationBst.cmo";;*)
+
+(*============================================================*) 
+
+(* Manipulation de notre variable globale de nombre de rotation, utilisee dans experimentationAVL *)
+
+let nbRotation : int ref = ref 0;;
+
+let resetNbRotation() : unit =
+  nbRotation:=0
+;;
+
+let addNRotation(n : int) : unit =
+  nbRotation:=!nbRotation+n
+;;
+
+(*============================================================*)
+                                  
+(* Fonction de rotation gauche d'un AVL *)
+let left_rotation(t : 'a t_btree) : 'a t_btree =
+  if bt_isempty(t) || bt_isempty(bt_subright(t))
+  then t
+  else
+    (
+    addNRotation(1);
+    bt_rooting(bt_root(bt_subright(t)), bt_rooting(bt_root(t), bt_subleft(t), bt_subleft(bt_subright(t))), bt_subright(bt_subright(t)))
+    )
+;;
+
+
+(* Fonction de rotation droite d'un AVL *)
+let right_rotation(t : 'a t_btree) : 'a t_btree =
+  if bt_isempty(t) || bt_isempty(bt_subleft(t))
+  then t
+  else
+    (
+    addNRotation(1);
+    bt_rooting(bt_root(bt_subleft(t)), bt_subleft(bt_subleft(t)), bt_rooting(bt_root(t), bt_subright(bt_subleft(t)), bt_subright(t)))
+    )
+;;
+
+
+(* Fonction de rotation gauche-droite d'un AVL *)
+let left_right_rotation(t : 'a t_btree) : 'a t_btree =
+   if bt_isempty(t) || bt_isempty(bt_subleft(t)) || bt_isempty(bt_subright(bt_subleft(t)))
+   then t
+   else
+     (
+     addNRotation(2);
+     bt_rooting(bt_root(bt_subright(bt_subleft(t))), bt_rooting(bt_root(bt_subleft(t)),bt_subleft(bt_subleft(t)),bt_subleft(bt_subright(bt_subleft(t)))),bt_rooting(bt_root(t),bt_subright(bt_subright(bt_subleft(t))), bt_subright(t)))
+     )
+     ;;
+  
+  
+(* Fonction de rotation droite-gauche d'un AVL *)
+let right_left_rotation(t : 'a t_btree) : 'a t_btree =
+  if bt_isempty(t) || bt_isempty(bt_subright(t)) || bt_isempty(bt_subleft(bt_subright(t)))
+  then t
+  else
+    (
+    addNRotation(2);
+ bt_rooting(bt_root(bt_subleft(bt_subright(t))),bt_rooting(bt_root(t), bt_subleft(t),bt_subleft(bt_subleft(bt_subright(t)))),bt_rooting(bt_root(bt_subright(t)),bt_subright(bt_subleft(bt_subright(t))),bt_subright(bt_subright(t))))
+    )
+;;
+
+(*============================================================*) 
+
+(* On remarque que après réequilibrage de notre arbre, les indices de désequilibre de notre arbre sont déplacés avec le noeud auquel ils sont associés mais ne correspondent plus à la vraie valeur de déséquilibre, nous passons donc sur notre arbre notre fonction reindice pour remettre a jour les valeurs de desequilibre de notre arbre *)
+
+(* Fonction qui associe à chaque noeud sa valeur de déséquilibre *)
+
+let rec reindice (t : ('a * int) t_btree) : ('a * int) t_btree =
+  if bt_isempty(t)
+  then t
+  else (
+    let (v, d) : ('a * int) = bt_root(t) in
+    bt_rooting((v, balance_node(t)), reindice(bt_subleft(t)), reindice(bt_subright(t)))
+  )
+;;
+
+
+(*============================================================*) 
+
+(* Renvoie la plus grande valeur des noeuds d'un AVL *)
+let rec avl_max_value(t : ('a * int) t_btree) : 'a =
+  if bt_isempty(t)
+  then failwith("error avl_max : tree is empty")
+  else 
+    if bt_isempty(bt_subright(t))
+    then
+      let (v,d) : ('a * int) = bt_root(t) in
+      v
+    else avl_max_value(bt_subright(t))
+;;
+
+
+(* Renvoie le noeud le plus à droite, donc le plus 'grand'*)
+let rec avl_max(t : ('a * int) t_btree) : ('a * int) =
+  if bt_isempty(t)
+  then failwith("error avl_max : tree is empty")
+  else 
+    if bt_isempty(bt_subright(t))
+    then bt_root(t)
+    else avl_max(bt_subright(t))
+;;
+
+
+
+(* Vérifie si un AVL est bien également un arbre binaire de recherche *)
+let rec is_BST_avl(t : ('a * int) t_btree) : bool =
+  if bt_isempty(t)
+  then true
+  else
+    let (v,d) : ('a * int) = bt_root(t) in
+    if not(bt_isempty(bt_subleft(t))) && avl_max_value(bt_subleft(t)) >= v
+    then false
+    else
+      if not(bt_isempty(bt_subright(t))) && avl_max_value(bt_subright(t)) <= v
+      then false
+      else
+        if not (is_BST_avl(bt_subleft(t))) || not(is_BST_avl(bt_subright(t)))
+        then false
+        else true
+;;
+
+(* Verifie que notre AVL est un arbre binaire de recherche et est equilibré *)
+
+let is_AVL(t : ('a * int) t_btree) : bool =
+    is_balanced(t) && is_BST_avl(t)
+;;     
+
+
+
+(*============================================================*) 
+
+(* Reequilibre un AVL *)
+let reequilibrer(t : ('a * int) t_btree) : ('a * int) t_btree =
+  if bt_isempty(t)
+  then t
+  else
+   let (v, d) : ('a * int) = bt_root(t) in 
+   if d>2 || d<(-2)
+   then failwith("error reequilibrer : desiquilibre hors limites")
+   else
+    if d=0 || d=1 || d=(-1)
+    then t
+    else
+      if not(bt_isempty(bt_subleft(t))) && not(bt_isempty(bt_subright(t)))
+      then   
+        let (vl, dl) : ('a * int) = bt_root(bt_subleft(t)) in 
+        (* On a besoin d'ici rajouter une condition pour forcer d'une rotation en cas de suppression du seul noeud à droite*)
+        if (d=2) && ((dl=1)||(dl=0)) 
+        then right_rotation(t)
+        else
+          if (d=2) && (dl=(-1))
+          then left_right_rotation(t)
+          else
+            let (vr, dr) : ('a * int) = bt_root(bt_subright(t)) in
+            (* On a besoin d'ici rajouter une condition pour forcer d'une rotation en cas de suppression du seul noeud à gauche*)
+            if (d=(-2)) && (dr=(-1)||(dr=0)) 
+            then left_rotation(t)
+            else
+              if(d=(-2)) && (dr=(1))
+              then right_left_rotation(t)
+              else failwith("error reequilibrer : end if both subLeft and subRight exist")
+       else 
+         if not(bt_isempty(bt_subleft(t)))
+         then   
+           let (vl, dl) : ('a * int) = bt_root(bt_subleft(t)) in 
+           (* On a besoin d'ici rajouter une condition pour forcer d'une rotation en cas de suppression du seul noeud à droite*)
+           if (d=2) && ((dl=1)||(dl=0))
+           then right_rotation(t)
+           else
+             if (d=2) && (dl=(-1))
+             then left_right_rotation(t)
+             else failwith("error reequilibrer : end if only subLeft exist")
+         else
+           if not(bt_isempty(bt_subright(t)))
+           then  
+             let (vr, dr) : ('a * int) = bt_root(bt_subright(t)) in
+             (* On a besoin d'ici rajouter une condition pour forcer d'une rotation en cas de suppression du seul noeud à gauche*)
+             if (d=(-2)) && ((dr=(-1))||(dr=0))
+             then left_rotation(t)
+             else
+               if(d=(-2)) && (dr=(1))
+               then right_left_rotation(t)
+               else failwith("error reequilibrer : end if only subRight exist")
+           else failwith("error reequilibrer : global end")
+;;  
+
+
+
+(*============================================================*) 
+
+(* Fonction d'ajout d'un noeud à un AVL, avec reequilibrage et remettant les indices correspondant au noeud *)
+
+let rec ajout_avl(t, e : ('a * int) t_btree * 'a) : ('a * int) t_btree =
+  if bt_isempty(t)
+  then bt_rooting((e, 0), bt_empty(), bt_empty())
+  else
+    (
+    let (v, d) : ('a * int) = bt_root(t) in
+    if(e < v)
+    then reindice(reequilibrer(reindice(bt_rooting((v,d), ajout_avl(bt_subleft(t), e), bt_subright(t)))))
+    else
+      if(e > v)
+      then reindice(reequilibrer(reindice(bt_rooting((v,d),bt_subleft(t),ajout_avl(bt_subright(t), e)))))
+      else t
+  )
+;;
+
+
+
+(*============================================================*) 
+
+(* Renvoie un AVL sans sa plus grande valeur *)
+let rec avl_supprmax(t : ('a * int) t_btree) : ('a * int) t_btree =
+  if bt_isempty(t)
+  then failwith("error avl_supprmax : tree is empty")
+  else 
+    if(bt_isempty(bt_subright(t)))
+    then bt_subleft(t)
+    else reindice(reequilibrer(reindice(bt_rooting(bt_root(t), bt_subleft(t), bt_supprmax(bt_subright(t))))))
+;;
+
+
+(* Fonction de suppression d'un noeud d'un AVL, avec reequilibrage t remettant les indices correspondant aux noeuds *)
+
+let rec suppr_avl(t, e : ('a * int) t_btree * 'a) : ('a * int) t_btree =
+  if bt_isempty(t)
+  then bt_empty()
+  else 
+    let (v, d) : ('a * int) = bt_root(t) in
+    if e<v
+    then reindice(reequilibrer(reindice(bt_rooting((v,d), suppr_avl(bt_subleft(t), e), bt_subright(t)))))
+    else
+      if e>v
+      then reindice(reequilibrer(reindice(bt_rooting((v,d), bt_subleft(t), suppr_avl(bt_subright(t), e)))))
+      else
+        if bt_isempty(bt_subright(t)) && v = e
+        then bt_subleft(t)
+        else
+          if bt_isempty(bt_subleft(t)) && not(bt_isempty(bt_subright(t))) && v = e
+          then bt_subright(t)
+          else
+            if not(bt_isempty(bt_subleft(t))) && not(bt_isempty(bt_subright(t))) && v = e
+            then reindice(reequilibrer(reindice(bt_rooting(avl_max(bt_subleft(t)), avl_supprmax(bt_subleft(t)), bt_subright(t)))))
+           else failwith("Impossible de supprimer l'element")
+;;
+
+
+
+(*============================================================*) 
+
+(* Nous ne pouvons pas reutiliser directement notre fonction de recherche car celle-ci comparerait les binomes valeurs,indices il faudrait alors connaitre a l'avance la valeur d'equilibre du noeud dans lequel se trouve notre valeur. Nous pouvons facilement modifier notre fonction pour que celle ci ne prenne en compte que la valeur. *)
+
+(* Fonction de recherche d'un element dans un AVL *)
+
+let rec avl_seek(t, e : ('a * int) t_btree * 'a) : bool =
+  if bt_isempty(t)
+  then false
+  else (
+    let (v,d) : 'a * int = bt_root(t) in
+    if e = v
+    then true
+    else
+      if e<v
+      then avl_seek(bt_subleft(t),e)
+      else avl_seek(bt_subright(t),e)
+  )
+;;

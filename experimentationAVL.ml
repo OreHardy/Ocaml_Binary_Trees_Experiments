@@ -1,0 +1,148 @@
+(*PROJET AP3 - OREGAN HARDY | PAUL CAILLE | ANTONY FERRY *)
+
+(*============================================================*) 
+
+(* Ouverture de nos fichiers binaires *)
+
+open Btree ;;
+open Bst ;;
+open ExperimentationBst ;;
+open Avl ;;
+
+
+#load "btree.cmo";;
+#load "bst.cmo";;
+#load "experimentationBst.cmo";;
+#load "avl.cmo";;
+#load "unix.cma";;
+
+(*============================================================*) 
+
+(* Crée un AVL contenant des valeurs aléatoires *)
+
+let rec avl_rnd_create(size, limit : int * int) : ('a * int) t_btree =
+  Random.self_init() ;
+  if size = 0
+  then bt_empty()
+  else ajout_avl(avl_rnd_create(size-1, limit), (Random.int limit))
+;;
+
+(* Crée un avl à partir d'une liste de valeur *)
+
+let rec avl_lbuild_aux(l, t : 'a list * (('a * int) t_btree)) : ('a * int) t_btree =
+  if (l==[])
+  then t
+  else avl_lbuild_aux(List.tl(l), ajout_avl(t, List.hd(l)))
+;;
+
+let avl_lbuild(l : 'a list) : ('a * int) t_btree =
+  let newAVL : ('a * int) t_btree = avl_lbuild_aux(l, bt_empty()) in
+  newAVL
+;;
+
+(* Crée un AVL à partir de la fonction create_sorted_list_begin *)
+
+let avl_rnd_list_create(size, lenSubList, limit : int * int * int) : (('a * int) t_btree) =
+avl_lbuild(create_sorted_list_begin(size, lenSubList, limit))
+;;
+
+(* Renvoie la moyenne des rotations de 100 arbres de tailles n *)
+
+let avl_avg_rotation_list(n : int) : float =
+  let moyRotation : float ref = ref 0. and
+  myTree : ('a * int) t_btree ref = ref (bt_empty()) in
+  for i = 0 to 99
+  do
+  (
+  resetNbRotation();
+  myTree := avl_rnd_list_create(n, (n)/2, 100);
+  moyRotation := !moyRotation +. float_of_int(getValeurRotation())
+  )
+  done ;
+  !moyRotation/. 100.
+;;
+
+(* Ecrit dans le fichier rotation.csv la moyenne des rotations de 100 arbres de taille 1 à 100 *)
+
+let avl_rotation_to_text() : unit =
+  let oc = open_out "rotation.csv" in
+  for i = 1 to 100
+  do
+    let avg : float = avl_avg_rotation_list(i) in
+    Printf.fprintf oc "%d," i;
+    Printf.fprintf oc "%f\n" avg;
+  done;
+  close_out oc
+;;
+
+(* Determine le temps d execution de la fonction donnee en argument *)
+
+let time f x =
+  let start = Unix.gettimeofday () in
+  let res = f x in
+  let stop = Unix.gettimeofday () in
+  (*let () = Printf.printf "Execution time: %fs\n%!" (stop -. start) in*)
+  (stop -. start), res
+;;
+
+(* Ecrit dans un .csv le temps d execution de la fonction de création d'AVL en fonction de la taille *)
+
+let creation_time_to_text(fct, sample_size, limit : ((int * int) ->  ('a * int) t_btree) * int * int) : unit =
+  let oc = open_out "create.csv" in
+  for i = 0 to sample_size-1 do
+    let (t,r) : (float * 'b) = time fct(i, limit) in
+      Printf.fprintf oc "%d," i;
+      Printf.fprintf oc "%f\n" t;
+  done;
+  close_out oc;
+;;
+
+(* Ecrit dans un fichier .csv le temps d execution de la fonction d'ajout dans un AVL en fonction de la taille *)
+
+let ajout_time_to_text(fct, sample_size, limit : ((('a * int) t_btree) * 'a -> ('a * int) t_btree) * int * int) : unit =
+  let oc = open_out "add.csv" in
+  for i = 1 to sample_size do
+    let bt : ('a * int) t_btree =  avl_rnd_create(i, limit) in
+    let v : 'a = Random.int limit in 
+        let (t,r) : (float * 'b) = time fct(bt,v) in
+        Printf.fprintf oc "%d," i;
+        Printf.fprintf oc "%f\n" t;
+  done;
+  close_out oc;
+;;
+
+(* Ecrit dans un fichier .csv le temps d execution de la fonction de suppression dans un AVL, on supprime la feuille la plus a droite systematiquement *)
+
+let suppr_time_to_text(fct, sample_size, limit : ((('a * int) t_btree) * 'a -> ('a * int) t_btree) * int * int) : unit =
+  let oc = open_out "del.csv" in
+  for i = 1 to sample_size do
+    let bt : ('a * int) t_btree =  avl_rnd_create(i, limit) in
+    let v : 'a  = avl_max_value(bt) in 
+    (*let v : 'a = Random.int limit in *)
+        let (t,r) : (float * 'b) = time fct(bt,v) in
+        Printf.fprintf oc "%d," i;
+        Printf.fprintf oc "%f\n" t;
+  done;
+  close_out oc;
+;;
+
+(* Ecrit dans un fichier .csv le temps d'execution de la fonction de recherche dans un AVL en fonction de la taille, on cherche la plus grande valeur systématiquement *)
+
+let seek_time_to_text(fct, sample_size, limit : ((('a * int) t_btree) * 'a -> bool) * int * int) : unit =
+  let oc = open_out "seek.csv" in
+  for i = 1 to sample_size do
+    let bt : ('a * int) t_btree =  avl_rnd_create(i, limit) in
+    let v : 'a  = avl_max_value(bt) in 
+    (*let v : 'a = Random.int limit in *)
+        let (t,r) : (float * 'b) = time fct(bt,v) in
+        Printf.fprintf oc "%d," i;
+        Printf.fprintf oc "%f\n" t;
+  done;
+  close_out oc;
+;;
+
+
+creation_time_to_text(avl_rnd_create, 1000, 100);;
+ajout_time_to_text(ajout_avl, 1000, 100);;
+suppr_time_to_text(suppr_avl, 1000, 100);;
+seek_time_to_text(avl_seek, 1000, 100);;

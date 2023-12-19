@@ -1,0 +1,137 @@
+(*PROJET AP3 — OREGAN HARDY | PAUL CAILLE | ANTONY FERRY *) 
+
+(*============================================================*) 
+
+(*Ouverture de nos fichiers binaires*) 
+
+open Btree ;;
+open Bst ;;
+
+
+(*============================================================*) 
+
+(*Fonction d'ajout en fin de liste, récupérée du fichier AP3.util, nous en aurons besoin plus tard*) 
+let rec add_lst(l, e : 'a list * 'a) : 'a list =
+  match l with
+    [] -> [e]
+  | hd::tail -> hd::add_lst(tail, e)
+;;
+
+
+(*============================================================*) 
+
+(*Creation d'un ABR de taille size à partir de valeurs aléatoires (de 0 à limit) *)
+
+let rec bst_rnd_create_aux(size, limit, arr : int * int * bool array) : int t_btree =
+  Random.self_init() ;
+  let myNumber : int ref  =  ref (Random.int limit) in 
+  if size = 0
+  then bt_empty()
+  else
+    (
+    while arr.(!myNumber)<>false
+    do 
+      myNumber :=  (Random.int) limit
+    done;
+    arr.(!myNumber)<-true; 
+    bst_linsert(bst_rnd_create_aux(size-1, limit, arr), !myNumber)
+   )
+;;
+
+let bst_rnd_create(size, limit : int * int) : int t_btree =
+  let arrNumbers : bool array = Array.make 100 false in
+  bst_rnd_create_aux(size, limit, arrNumbers)
+;;
+
+(*============================================================*) 
+
+(*Creation d'une liste de taille size avec une sous liste triée au debut de taille lenSubList*) 
+let create_sorted_list_begin(size, lenSubList, limit : int * int * int) : int list =
+  (*Random.self_init(); *)
+  let newList : int list ref = ref []
+  and myFstVal : int ref = ref (Random.int (limit-lenSubList))
+  and myVal : int ref = ref (Random.int limit)
+  and arrNumbers : bool array = Array.make 100 false in 
+  for i = 0 to lenSubList-1
+  do (
+    while arrNumbers.(!myFstVal+i)<>false
+    do
+      myFstVal := (Random.int) limit
+    done ;
+    arrNumbers.(!myFstVal+i)<-true;
+    newList:=add_lst(!newList, !myFstVal+i)
+  )
+  done;
+  for j = lenSubList to size-1
+  do (
+    while arrNumbers.(!myVal)<>false
+    do
+      myVal := (Random.int) limit
+    done ;
+    arrNumbers.(!myVal)<-true;
+    newList:=add_lst(!newList, !myVal)
+  )
+  done;
+  !newList
+;;
+
+(*============================================================*) 
+
+(*Calcule le déséquilibre du noeud t*) 
+let balance_node(t : 'a t_btree) : int =
+  if bt_isempty(t)
+  then 0
+  else height(bt_subleft(t)) - height(bt_subright(t))
+;;
+
+let rec is_balanced(t : ('a * int) t_btree) : bool =
+  if bt_isempty(t)
+  then true 
+  else
+    let (v,d) : ('a * int) = bt_root(t) in 
+    if d<(-1) || d>(1)
+    then false
+    else is_balanced(bt_subleft(t)) && is_balanced(bt_subright(t))
+;;
+
+(*Calcule la sommme des déséquilibres des noeuds de l'ABR t *) 
+let rec sum_balance_tree(t : 'a t_btree) : int =
+  if bt_isempty(t)
+  then 0
+  else balance_node(t)+sum_balance_tree(bt_subleft(t))+sum_balance_tree(bt_subright(t))
+;;
+
+
+(*Calcule la moyenne des désquilibres des noeuds pour 100 ABR aléatoires de taille 1 à 100 et les stocke dans un tableau de flottants *) 
+let avg_balance() : float array =
+  let results : float array = Array.make 100 0.0 in
+  for i = 0 to 99 do
+    results.(i) <- float_of_int(sum_balance_tree(bst_rnd_create(i+1, 100)))/.float_of_int(i+1)
+  done ;
+  results
+;;
+
+(*Calcule la moyenne des déséquilibres des noeuds pour 100 ABR crées a partir d une liste dont la première moitié est ordonnée et les stocke dans un tableau de flottants *) 
+let avg_balance_from_list() : float array =
+  let results : float array = Array.make 100 0.0 in
+  for i = 0 to 99 do
+    results.(i) <- float_of_int(sum_balance_tree(bst_lbuild(create_sorted_list_begin(i+1, (i+1)/2, 100))))/.float_of_int(i+1)
+  done ;
+  results
+;;
+
+
+(*============================================================*) 
+
+(*Rentre les résultats d'une des fonctions de calcul de moyenne de déséquilibre dans un fichier texte file.txt qui doit déjà exister de façon à être facilement exploitable dans un tableur *) 
+let balance_array_to_text(fct_avg : unit -> float array) : unit =
+  let oc = open_out "file.csv" in
+  for j = 0 to 99 do
+      let  tab : float array = fct_avg() in 
+    for i = 0 to 99 do
+      Printf.fprintf oc "%f,"  tab.(i) ;
+    done;
+  Printf.fprintf oc "\n" ;
+  done; 
+  close_out oc;
+;;
